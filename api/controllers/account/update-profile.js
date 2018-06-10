@@ -138,6 +138,7 @@ module.exports = {
       }
     }
 
+
     // If an email address change was requested, and re-confirmation is required,
     // send the "confirm account" email.
     if (desiredEffectReEmail === 'beginChange' || desiredEffectReEmail === 'modifyPendingChange') {

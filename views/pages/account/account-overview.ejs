@@ -45,17 +45,11 @@
       </div>
       <div class="col-sm-6">
         <span class="float-sm-right">
-          <ajax-button :syncing="syncingOpenCheckout || syncingUpdateCard" class="btn btn-sm btn-outline-info account-settings-button" @click="clickStripeCheckoutButton()">
-            <span slot="syncing-state">
-              <span v-if="syncingOpenCheckout">Connecting...</span>
-              <span v-else>Updating...</span>
-            </span>
-            <span slot="default">{{ me.hasBillingCard ? 'Change card' : 'Add Card' }}</span>
-          </ajax-button>
+          <button class="btn btn-sm btn-outline-info account-settings-button" :disabled="syncingUpdateCard" @click="clickStripeCheckoutButton()">{{ syncingUpdateCard ? 'Updating...' : hasBillingCard ? 'Change card' : 'Add Card' }}</button>
         </span>
       </div>
     </div>
-    <div v-if="isBillingEnabled && me.hasBillingCard">
+    <div v-if="isBillingEnabled && hasBillingCard">
       <div class="row">
         <div class="col-3">Credit card:</div>
         <div class="col">{{me.billingCardBrand}} ending in <strong>{{me.billingCardLast4}}</strong> <a class="remove-button ml-2" @click="clickRemoveCardButton()">Remove</a></div>

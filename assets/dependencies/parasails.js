@@ -1,23 +1,75 @@
 /**
  * parasails.js
- * (lightweight structures for apps with more than one page)
+ * v0.4.0
  *
- * v0.7.3
- *
- * Copyright 2014-present, Mike McNeil (@mikermcneil)
+ * Copyright 2017, Mike McNeil (@mikermcneil)
  * MIT License
- *
- * - https://sailsjs.com/about
- * - https://sailsjs.com/support
- * - https://www.npmjs.com/package/parasails
- *
- * > Parasails is a tiny (but opinionated) and pipeline-agnostic wrapper
- * > around Vue.js and Lodash, with optional participation from jQuery, bowser,
- * > and VueRouter.
+ * https://www.npmjs.com/package/parasails
+ * https://sailsjs.com/support
  */
-(function(factory, exposeUMD){
-  exposeUMD(this, factory);
-})(function (Vue, _, VueRouter, $, bowser){
+(function(global, factory){
+  var Vue;
+  var _;
+  var VueRouter;
+  var $;
+
+  //˙°˚°·.
+  //‡CJS  ˚°˚°·˛
+  if (typeof exports === 'object' && typeof module !== 'undefined') {
+    var _require = require;// eslint-disable-line no-undef
+    var _module = module;// eslint-disable-line no-undef
+    // required deps:
+    Vue = _require('vue');
+    _ = _require('lodash');
+    // optional deps:
+    try { VueRouter = _require('vue-router'); } catch (e) { if (e.code === 'MODULE_NOT_FOUND') {/* ok */} else { throw e; } }
+    try { $ = _require('jquery'); } catch (e) { if (e.code === 'MODULE_NOT_FOUND') {/* ok */} else { throw e; } }
+    // export:
+    _module.exports = factory(Vue, _, VueRouter, $);
+  }
+  //˙°˚°·
+  //‡AMD ˚¸
+  else if(typeof define === 'function' && define.amd) {// eslint-disable-line no-undef
+    // Register as an anonymous module.
+    define([], function () {// eslint-disable-line no-undef
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      // FUTURE: maybe use optional dep. loading here instead?
+      // e.g.  `function('vue', 'lodash', 'vue-router', 'jquery')`
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      // required deps:
+      if (!global.Vue) { throw new Error('`Vue` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Vue.js library is getting brought in before `parasails`.)'); }
+      Vue = global.Vue;
+      if (!global._) { throw new Error('`_` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Lodash library is getting brought in before `parasails`.)'); }
+      _ = global._;
+      // optional deps:
+      VueRouter = global.VueRouter || undefined;
+      $ = global.$ || global.jQuery || undefined;
+
+      // So... there's not really a huge point to supporting AMD here--
+      // except that if you're using it in your project, it makes this
+      // module fit nicely with the others you're using.  And if you
+      // really hate globals, I guess there's that.
+      // ¯\_(ツ)_/¯
+      return factory(Vue, _, VueRouter, $);
+    });//ƒ
+  }
+  //˙°˚˙°·
+  //‡NUDE ˚°·˛
+  else {
+    // required deps:
+    if (!global.Vue) { throw new Error('`Vue` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Vue.js library is getting brought in before `parasails`.)'); }
+    Vue = global.Vue;
+    if (!global._) { throw new Error('`_` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Lodash library is getting brought in before `parasails`.)'); }
+    _ = global._;
+    // optional deps:
+    VueRouter = global.VueRouter || undefined;
+    $ = global.$ || global.jQuery || undefined;
+    // export:
+    if (global.parasails) { throw new Error('Conflicting global (`parasails`) already exists!'); }
+    global.parasails = factory(Vue, _, VueRouter, $);
+  }
+})(this, function (Vue, _, VueRouter, $){
+
 
   //  ██████╗ ██████╗ ██╗██╗   ██╗ █████╗ ████████╗███████╗
   //  ██╔══██╗██╔══██╗██║██║   ██║██╔══██╗╚══██╔══╝██╔════╝
@@ -74,41 +126,20 @@
     parasails._cache[moduleName] = moduleDefinition;
   }
 
-  function _exposeBonusMethods(def, currentModuleEntityNoun){
+  function _exposeJQueryPoweredMethods(def, currentModuleEntityNoun){
     if (!currentModuleEntityNoun) { throw new Error('Consistency violation: Bad internal usage. '); }
     if (def.methods && def.methods.$get) { throw new Error('This '+currentModuleEntityNoun+' contains `methods` with a `$get` key, but you\'re not allowed to override that'); }
     if (def.methods && def.methods.$find) { throw new Error('This '+currentModuleEntityNoun+' contains `methods` with a `$find` key, but you\'re not allowed to override that'); }
     if (def.methods && def.methods.$focus) { throw new Error('This '+currentModuleEntityNoun+' contains `methods` with a `$focus` key, but you\'re not allowed to override that'); }
-    if (def.methods && def.methods.forceRender) { throw new Error('This '+currentModuleEntityNoun+' contains `methods` with a `forceRender` key, but you\'re not allowed to override that'); }
-    if (def.methods && def.methods.$forceRender) { throw new Error('This '+currentModuleEntityNoun+' contains `methods` with a `$forceRender` key, but that\'s too confusing to let stand (did you mean "forceRender"?  Besides, that method cannot be overridden anyway)'); }
     def.methods = def.methods || {};
-
-    // Attach misc. methods:
-    def.methods.forceRender = function (){
-      this.$forceUpdate();
-      var promise = this.$nextTick();
-      return promise;
-    };//ƒ
-
-
-    // Attach jQuery-powered methods:
     if ($) {
-      def.methods.$get = function (){
-        var $rootEl = $(this.$el);
-        if ($rootEl.length !== 1) { throw new Error('Cannot use .$get() - something is wrong with this '+currentModuleEntityNoun+'\'s top-level DOM element.  (It probably has not mounted yet!)'); }
-        return $rootEl;
-      };
-      def.methods.$find = function (subSelector){
-        if (!subSelector) { throw new Error('Cannot use .$find() because no sub-selector was provided.\nExample usage:\n    var $emailFields = this.$find(\'[name="emailAddress"]\');'); }
-        var $rootEl = $(this.$el);
-        if ($rootEl.length !== 1) { throw new Error('Cannot use .$find() - something is wrong with this '+currentModuleEntityNoun+'\'s top-level DOM element.  (It probably has not mounted yet!)'); }
-        return $rootEl.find(subSelector);
-      };
+      def.methods.$get = function (){ return $(this.$el); };
+      def.methods.$find = function (subSelector){ return $(this.$el).find(subSelector); };
       def.methods.$focus = function (subSelector){
-        if (!subSelector) { throw new Error('Cannot use .$focus() because no sub-selector was provided.\nExample usage:\n    this.$focus(\'[name="emailAddress"]\');'); }
-        var $rootEl = $(this.$el);
-        if ($rootEl.length !== 1) { throw new Error('Cannot use .$focus() - something is wrong with this '+currentModuleEntityNoun+'\'s top-level DOM element.  (It probably has not mounted yet!)'); }
-        var $fieldToAutoFocus = $rootEl.find(subSelector);
+        // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        // FUTURE: If the current Vue thing hasn't mounted yet, throw an error.
+        // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        var $fieldToAutoFocus = $(this.$el).find(subSelector);
         if ($fieldToAutoFocus.length === 0) { throw new Error('Could not autofocus-- no such element exists within this '+currentModuleEntityNoun+'.'); }
         if ($fieldToAutoFocus.length > 1) { throw new Error('Could not autofocus `'+subSelector+'`-- too many elements matched!'); }
         $fieldToAutoFocus.focus();
@@ -121,117 +152,7 @@
     }
   }
 
-  function _wrapMethodsAndVerifyNoArrowFunctions(def, currentModuleEntityNoun){
-    if (!currentModuleEntityNoun) { throw new Error('Consistency violation: Bad internal usage. '); }
-
-    // Preliminary sanity check:
-    // Make sure top-level def doesn't have anything sketchy like "beforeMounted"
-    // or "beforeDestroyed", because those definitely aren't real things.
-    var RECOMMENDATIONS_BY_UNRECOGNIZED_KEY = {
-      beforeMounted: 'beforeMount',
-      beforeDestroyed: 'beforeDestroy',
-      events: 'methods',
-      functions: 'methods',
-      state: 'data'
-    };
-    _.each(_.intersection(_.keys(RECOMMENDATIONS_BY_UNRECOGNIZED_KEY),_.keys(def)), function (propertyName) {
-      if (def[propertyName] !== undefined) {
-        throw new Error('Detected unrecognized and potentially confusing key "'+propertyName+'" on the top level of '+currentModuleEntityNoun+' definition.  Did you mean "'+RECOMMENDATIONS_BY_UNRECOGNIZED_KEY[propertyName]+'"?');
-      }
-    });//∞
-
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // FUTURE: Maybe verify that neither beforeMount nor beforeDestroy are
-    // `async function`s.  (These must be synchronous!  And it's easy to forget.)
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-    // In fact, in some cases, we'll go so far as to fail if we see any other
-    // unrecognized top-level keys too:
-    // > This is particularly useful for catching loose top-level properties
-    // > that were intended to be within `data` or `methods`, etc.)
-    if (currentModuleEntityNoun === 'page script' || currentModuleEntityNoun === 'component') {
-      var LEGAL_TOP_LVL_KEYS = [
-        // Everyday page script stuff:
-        'beforeMount',
-        'mounted',
-        'data',
-        'methods',
-
-        // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        // TODO: Add `this.listen()` and `this.ignore()` -- see:
-        // https://github.com/mikermcneil/parasails/commit/5b948a1a8a0945b19ccea6da3e7354255d3dc0b6
-        // (and also 83c439dc1f3a0375e67066fffe9151581cbab639)
-        //
-        // Or better yet, just use a declarative approach instead and let
-        // binding/unbinding happen behind the scenes.  e.g.:
-        // ```
-        // cloudEvents: {
-        //   pet: (msg)=>{…},
-        //   user: (msg)=>{…},
-        //   organization: {
-        //     destroyed: (msg)=>{…},
-        //     updated: (msg)=>{…},
-        //     bankWireReceived: (msg)=>{…},
-        //     error: (msg)=>{…}
-        //   },
-        //   circus: {
-        //     admissionPaymentReceived: (msg)=>{…}
-        //   }
-        // }
-        // ```
-        // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-        // Extra component stuff:
-        'props',
-        'template',
-        'beforeDestroy',
-
-        // Client-side router stuff:
-        'router',
-        'virtualPages',
-        'html5HistoryMode',
-        'beforeNavigate',
-        'afterNavigate',
-        'virtualPagesRegExp',
-
-        // Misc. & relatively more uncommon Vue.js stuff
-        'watch',
-        'computed',
-        'propsData',
-        'components',
-        'filters',
-        'directives',
-        'el',
-        'render',
-        'renderError',
-        'comments',
-        'inheritAttrs',
-        'model',
-        'functional',
-        'delimiters',
-        'name',
-        'beforeCreate',
-        'created',
-        'beforeUpdate',
-        'updated',
-        'activated',
-        'deactivated',
-        'destroyed',
-        'errorCaptured',
-        'parent',
-        'mixins',
-        'extends',
-        'provide',
-        'inject'
-      ];
-      _.each(_.difference(_.keys(def), LEGAL_TOP_LVL_KEYS), function (propertyName) {
-        if (def[propertyName] !== undefined) {
-          throw new Error('Detected unrecognized key "'+propertyName+'" on the top level of '+currentModuleEntityNoun+' definition.  Did you perhaps intend for `'+propertyName+'` to be included as a nested key within `data` or `methods`?  Please check on that and try again.  If you\'re unsure, or you\'re deliberately attempting to use a Vue.js feature that relies on having a top-level property named `'+propertyName+'`, then please remove this check from the parasails.js library in your project, or drop by https://sailsjs.com/support for assistance.');
-        }
-      });//∞
-    }//ﬁ
-
-    // Wrap and verify methods:
+  function _wrapMethodsAndVerifyNoArrowFunctions(def){
     def.methods = def.methods || {};
     _.each(_.keys(def.methods), function (methodName) {
       if (!_.isFunction(def.methods[methodName])) {
@@ -247,7 +168,7 @@
       }
 
       if (isArrowFunction) {
-        throw new Error('Unexpected definition for Vue method `'+methodName+'`.  Vue methods cannot be specified as arrow functions, because then you wouldn\'t have access to `this` (i.e. the Vue vm instance).  Please use a function like `function(){…}` or `async function(){…}` instead.');
+        throw new Error('Unexpected definition for Vue method `'+methodName+'`.  Vue methods cannot be specified as arrow functions, because then you wouldn\'t have access to `this` (i.e. the Vue vm instance).  Please use a function like `function(){…}` instead.');
       }
 
       // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -299,159 +220,6 @@
   }
 
 
-  //   ██████╗ ██╗      ██████╗ ██████╗  █████╗ ██╗         ███████╗██╗   ██╗███████╗███╗   ██╗████████╗███████╗
-  //  ██╔════╝ ██║     ██╔═══██╗██╔══██╗██╔══██╗██║         ██╔════╝██║   ██║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
-  //  ██║  ███╗██║     ██║   ██║██████╔╝███████║██║         █████╗  ██║   ██║█████╗  ██╔██╗ ██║   ██║   ███████╗
-  //  ██║   ██║██║     ██║   ██║██╔══██╗██╔══██║██║         ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║   ██║   ╚════██║
-  //  ╚██████╔╝███████╗╚██████╔╝██████╔╝██║  ██║███████╗    ███████╗ ╚████╔╝ ███████╗██║ ╚████║   ██║   ███████║
-  //   ╚═════╝ ╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝    ╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
-  //
-
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // Capture uncaught errors (and trigger a fatal error if appropriate)
-  //
-  // A global error handler, "catcher of the uncaught", first of its name, and
-  // bane to bugs.  This (normally-invisible) gutter lurks at the bottom of the
-  // screen, but then springs to life if any uncaught errors are detected.
-  //
-  // > Out of the box, this behavior is deactivated any time Sails is running in
-  // > in the "production" environment (`sails.config.environment !== 'production')
-  // > (e.g. your local development machine, your staging server).  In order to do
-  // > this, it checks `SAILS_LOCALS._environment`, a special variable set by the
-  // > boilerplate "custom" hook (included in all Sails apps using the "Web App"
-  // > template).  Note that this behavior is also disabled if `window.SAILS_LOCALS`
-  // > is not set (e.g. any pages where "exposeLocalsToBrowser" is not in use).
-  // > Finally, this behavior is also disabled if jQuery is not available.
-  //
-  // ---------------------------------------------------------------------------------------
-  // In the off change your app is using a tool like Bugsnag/Sentry/Rollbars in
-  // environments OTHER THAN PRODUCTION, and you'd like to disable this behavior,
-  // the following section of code can simply be removed.
-  // ---------------------------------------------------------------------------------------
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  if ($ && typeof window !== 'undefined' && window.SAILS_LOCALS && window.SAILS_LOCALS._environment !== 'production') {
-
-    var _displayErrorOverlay = function(errorSummary){
-
-      if ($('#parasails-error-handler').length === 0) {
-        // Very first error:
-        $('<div id="parasails-error-handler">'+
-          '<div role="error-handler-content">'+
-            '<h1>Whoops</h1>'+
-            '<p>'+
-              '<span role="summary">An unexpected client-side error occurred.</span><br/>'+
-              '<pre>'+_.trunc(errorSummary, {length: 350})+'</pre>'+
-              '<span>Please check your browser\'s JavaScript console for further details.</span><br/>'+
-              '<small>This message will not be displayed in production.  '+
-              'If you\'re unsure, <a href="https://sailsjs.com/support">ask for help</a>.</small><br/>'+
-              '<small>'+_.escape(new Date())+'</small>'+
-              // '<br/><br/>'+
-              // '<span>High-level summary:</span>'+
-              // '<code><pre>'+_.escape(errorSummary)+'</pre></code>'+
-            '</p>'+
-          '</div>'+
-        '</div>')
-        .css({
-          position: 'fixed',
-          bottom: '0',
-          height: '100%',
-          width: '100%',
-          display: 'table',
-          'background': 'radial-gradient(circle, rgba(0,0,0,0.98) 0%, rgba(35,8,8,0.87) 80%, rgba(20,5,5,0.85) 100%)',
-          // (Thanks cssgradient.io!)
-        })
-        .appendTo('body');
-
-        $('#parasails-error-handler [role="error-handler-content"]').css({
-          display: 'table-cell',
-          'vertical-align': 'middle',
-          'text-align': 'center'
-        });
-
-        $('#parasails-error-handler [role="error-handler-content"] *').css({
-          'font-family': '\'Consolas\', \'Courier\', \'courier\', serif',
-          color: 'white'
-        });
-
-        $('#parasails-error-handler [role="error-handler-content"] small').css({
-          color: '#cccccc'
-        });
-
-        $('#parasails-error-handler [role="error-handler-content"] pre').css({
-          color: '#ff5555',
-          display: 'block',
-          'background': '#112f1f',
-          'white-space': 'pre-wrap',
-          'padding': '10px',
-          'margin-left': 'auto',
-          'margin-right': 'auto',
-          'max-width': '500px',
-          'min-width': '280px',
-          'font-size': '11px'
-        });
-
-        $('#parasails-error-handler [role="error-handler-content"] a').css({
-          'text-decoration': 'underline',
-          color: '#cccccc'
-        });
-
-      } else {
-        // Subsequent errors:
-        $('#parasails-error-handler [role="summary"]')
-        .text('Multiple unexpected client-side errors occurred.');
-      }
-
-      // Returning `true` would suppress the actual uncaught error from
-      // showing up in the JavaScript console. But we don't want to play
-      // with fire for now.  Just getting access to this is enough.
-      // We allow the error to continue to be uncaught.
-      return false;
-    };//ƒ
-
-    // Bind top-level error handler on the window.
-    //
-    // This NEVER prevents the error from continuing to be uncaught- it's just here
-    // to ensure that if any JS errors occur, we notice them immediately, even if we
-    // don't have Chrome dev tools open.
-    //
-    // For more info about `window.onerror`, see:
-    // https://developer.mozilla.org/en-US/docs/Web/API/GlobalEventHandlers/onerror
-    window.onerror = function(message, scriptSrc, lineNo, charNo, err) {
-      _displayErrorOverlay(err&&err.message? err.message : message);
-    };//œ   </ on uncaught error >
-
-    // Configure Vue to share its beforeMount errors (and others) with us.
-    // > https://vuejs.org/v2/api/#errorHandler
-    Vue.config.errorHandler = function (err, unusedVm, errorSourceDisplayName) {
-      if (err && err.message) {
-        if (errorSourceDisplayName === 'render function') {
-          err.message = 'In the HTML template (during render): '+err.message;
-        } else {
-          err.message = 'In '+errorSourceDisplayName+': '+err.message;
-        }
-        // err.message += '\n [?] If you\'re unsure, get help: https://sailsjs.com/support';
-      } else {
-        var _originalNotActuallyErr = err;
-        err = new Error(_originalNotActuallyErr);
-        err.raw = _originalNotActuallyErr;
-      }
-      console.error(err);
-      _displayErrorOverlay(err);
-    };//ƒ
-
-    // Also those warnings -- but we'll treat them like errors because
-    // we're serious about code quality.  (Plus, early detection of bugs
-    // and typos saves so much time down the road!)
-    // > `trace` is the component hierarchy trace
-    Vue.config.warnHandler = function (msg, unusedVm, unusedTrace) {
-      throw new Error(
-        msg + '\n\n'+
-        'Expand this error and check out the stack trace for more info.'
-      );
-    };//ƒ
-
-  }//ﬁ
-
   //  ███████╗██╗  ██╗██████╗  ██████╗ ██████╗ ████████╗███████╗
   //  ██╔════╝╚██╗██╔╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝
   //  █████╗   ╚███╔╝ ██████╔╝██║   ██║██████╔╝   ██║   ███████╗
@@ -465,17 +233,6 @@
    */
 
   parasails = {};
-
-
-  /**
-   * parasails.util
-   *
-   * Direct references to all registered utility methods from userland.
-   *
-   * @type {Dictionary}
-   */
-
-  parasails.util = {};
 
 
   /**
@@ -496,14 +253,12 @@
     if (!_.isFunction(def)) { throw new Error('2nd argument (utility function definition) should be a function'); }
 
     // Build callable utility
+    // > FUTURE: also support machine defs?
     var callableUtility = def;
     callableUtility.name = utilityName;
 
     // Attach to global cache
     _exportOnGlobalCache(utilityName, callableUtility);
-
-    // Also expose on `parasails.util`
-    parasails.util[utilityName] = callableUtility;
 
   };
 
@@ -541,7 +296,7 @@
    *
    * Define a Vue component.
    *
-   * @param {String} componentName   [In camelCase]
+   * @param {String} componentName
    * @param {Dictionary} def
    *
    * @returns {Ref}  [new vue component for this page]
@@ -550,31 +305,11 @@
   parasails.registerComponent = function(componentName, def){
 
     // Expose extra methods on component def, if jQuery is available.
-    _exposeBonusMethods(def, 'component');
+    _exposeJQueryPoweredMethods(def, 'component');
 
     // Make sure none of the specified Vue methods are defined with any naughty arrow functions.
-    _wrapMethodsAndVerifyNoArrowFunctions(def, 'component');
+    _wrapMethodsAndVerifyNoArrowFunctions(def);
 
-    // Wrap the `mounted` LC in order to decorate the top-level element with
-    // a sniffable marker that can be unambiguously styled via a global selector
-    // in the corresponding stylesheet for the component.
-    var customMountedLC;
-    if (def.mounted) {
-      customMountedLC = def.mounted;
-    }//ﬁ
-    def.mounted = function(){
-
-      // Attach `parasails-component="…"` DOM attribute to allow for painless
-      // selecting from an optional, corresponding per-component stylesheet.
-      this.$el.setAttribute('parasails-component', _.kebabCase(componentName));
-
-      // Then call the original, custom "mounted" function, if there was one.
-      if (customMountedLC) {
-        customMountedLC.apply(this, []);
-      }
-    };//ƒ
-
-    // Finally, register as a global Vue component.
     Vue.component(componentName, def);
 
   };
@@ -637,76 +372,10 @@
     def.el = '#'+pageName;
 
     // Expose extra methods, if jQuery is available.
-    _exposeBonusMethods(def, 'page script');
+    _exposeJQueryPoweredMethods(def, 'page script');
 
     // Make sure none of the specified Vue methods are defined with any naughty arrow functions.
-    _wrapMethodsAndVerifyNoArrowFunctions(def, 'page script');
-
-    // If bowser and jQuery are both around, sniff the user agent and determine
-    // some additional information about the user agent device accessing the DOM.
-    var bowserSniffClasses = '';
-    var SNIFFER_CSS_CLASS_PREFIX = 'detected-';
-    if (bowser && $) {
-
-      if (bowser.tablet||bowser.mobile) {
-        bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'mobile';
-        // ^^Note: "detected-mobile" means ANY mobile OS/device (handset or tablet)
-        //  [?] https://github.com/lancedikson/bowser/tree/6bbdaf99f0b36cf3a7b8a14feb0aa60d86d7e0dd#device-flags
-        if (bowser.ios) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'ios';
-        } else if (bowser.android) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'android';
-        } else if (bowser.windowsphone) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'windowsphone';
-        }
-
-        if (bowser.tablet) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'tablet';
-        } else if (bowser.mobile) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'handset';
-        }
-      }
-      else {
-        // Otherwise we're not on a mobile OS/browser/device.
-        // But we can at least get a bit more intell on what's up:
-        if (bowser.mac) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'mac';
-        } else if (bowser.windows) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'windows';
-        } else if (bowser.linux) {
-          bowserSniffClasses += ' '+SNIFFER_CSS_CLASS_PREFIX+'linux';
-        }
-      }
-    }//ﬁ
-
-    // If we have jQuery available, then as soon as the DOM is ready, and if
-    // appropriate based on browser device sniffing, attach special classes to
-    // the <body> element.
-    if ($ && bowserSniffClasses) {
-      $(function(){
-        $('body').addClass(bowserSniffClasses);
-      });//_∏_
-    }//ﬁ
-
-    // Wrap the `mounted` LC:
-    var customMountedLC;
-    if (def.mounted) {
-      customMountedLC = def.mounted;
-    }//ﬁ
-    def.mounted = function(){
-
-      // Similar to above, attach special classes to the page script's top-level
-      // DOM element, now that it has been mounted (again, only if appropriate
-      // based on browser device sniffing, and only if jQuery is available.)
-      if ($ && bowserSniffClasses) {
-        this.$get().addClass(bowserSniffClasses);
-      }//ﬁ
-
-      // Then call the original, custom "mounted" function, if there was one.
-      if (customMountedLC) {
-        customMountedLC.apply(this, []);
-      }
-    };//ƒ
+    _wrapMethodsAndVerifyNoArrowFunctions(def);
 
     // Automatically attach `pageName` to `data`, for convenience.
     if (def.data && def.data.pageName) { throw new Error('Page script definition contains `data` with a `pageName` key, but you\'re not allowed to override that'); }
@@ -718,18 +387,18 @@
     if (def.methods && def.methods.goto) { throw new Error('Page script definition contains `methods` with a `goto` key-- but you\'re not allowed to override that'); }
     def.methods = def.methods || {};
     if (VueRouter) {
-      var _virtualPagesRegExp = def.virtualPagesRegExp;
       def.methods.goto = function (rootRelativeUrlOrOpts){
-        if (_virtualPagesRegExp && _.isString(rootRelativeUrlOrOpts) && !rootRelativeUrlOrOpts.match(_virtualPagesRegExp)) {
-          window.location = rootRelativeUrlOrOpts;
-        } else {
-          return this.$router.push(rootRelativeUrlOrOpts);
-        }
+        return this.$router.push(rootRelativeUrlOrOpts);
       };
     }
     else {
       def.methods.goto = function (){ throw new Error('Cannot use .goto() method because, at the time when this page script was registered, VueRouter did not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure VueRouter is getting brought in before `parasails`.)'); };
     }
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    // FUTURE: Make sure we didn't type "beforeMounted" or "beforeDestroyed" because those aren't real things
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
     // If virtualPages was specified, check usage and then...
     if (def.virtualPages && def.router) { throw new Error('Cannot specify both `virtualPages` AND an actual Vue `router`!  Use one or the other.'); }
@@ -737,7 +406,7 @@
     if (!def.virtualPages && def.html5HistoryMode !== undefined) { throw new Error('Cannot specify `html5HistoryMode` without also specifying `virtualPages`!'); }
     if (!def.virtualPages && def.beforeEach !== undefined) { throw new Error('Cannot specify `beforeEach` without also specifying `virtualPages`!'); }
     if ((def.beforeNavigate || def.afterNavigate) && def.virtualPages !== true) { throw new Error('Cannot specify `beforeNavigate` or `afterNavigate` unless you set `virtualPages: true`!'); }
-    if (def.virtualPages !== undefined) {
+    if (def.virtualPages) {
       if (!VueRouter) { throw new Error('Cannot use `virtualPages`, because it depends on the Vue Router.  But `VueRouter` does not exist on the page yet.  (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the VueRouter plugin is getting brought in before `parasails`.)'); }
 
       // Now we'll replace `virtualPages` in our def with the thing that VueRouter actually expects:
@@ -781,8 +450,8 @@
           }
         };//ƒ
 
-        if (def.methods._handleVirtualNavigation) {
-          throw new Error('Could not use `virtualPages: true`, because a conflicting `_handleVirtualNavigation` method is defined.  Please remove it, or do something else.');
+        if (def.methods._navigate) {
+          throw new Error('Could not use `virtualPages: true`, because a conflicting `_navigate` method is defined.  Please remove it, or do something else.');
         }
 
         // Set up local variables to refer to things in `def`, since it will be changing below.
@@ -801,12 +470,12 @@
         // parasails features beyond the expected usage.
 
         def.methods = _.extend(def.methods||{}, {
-          _handleVirtualNavigation: function(virtualPageSlug){
+          _navigate: function(virtualPageSlug){
 
             if (beforeNavigate) {
-              var resultFromBeforeNavigate = beforeNavigate.apply(this, [ virtualPageSlug ]);
-              if (resultFromBeforeNavigate === false) {
-                return false;
+              var doCancelNavigate = beforeNavigate.apply(this, [ virtualPageSlug ]);
+              if (doCancelNavigate === false) {
+                return;
               }//•
             }
 
@@ -835,14 +504,9 @@
                       // this.$emit('navigate', to.path); <<old way
                       var path = to.path;
                       var matches = path.match(pathMatchingRegExp);
-                      if (!matches) {
-                        var err =new Error('Could not match current URL path (`'+path+'`) as a virtual page.  Please check the `virtualPagesRegExp` -- e.g. `/^\/foo\/bar\/?([^\/]+)?/`');
-                        err.code = 'E_DID_NOT_MATCH_REGEXP';
-                        throw err;
-                      }//•
-
+                      if (!matches) { throw new Error('Could not match current URL path (`'+path+'`) as a virtual page.  Please check the `virtualPagesRegExp` -- e.g. `/^\/foo\/bar\/?([^\/]+)?/`'); }
                       // console.log('this.$parent', this.$parent);
-                      this.$parent._handleVirtualNavigation(matches[1]||'');
+                      this.$parent._navigate(matches[1]||'');
                       // this.$emit('navigate', {
                       //   rawPath: path,
                       //   virtualPageSlug: matches[1]||''
@@ -853,13 +517,8 @@
                       // this.$emit('navigate', this.$route.path); <<old way
                       var path = this.$route.path;
                       var matches = path.match(pathMatchingRegExp);
-                      if (!matches) {
-                        var err =new Error('Could not match current URL path (`'+path+'`) as a virtual page.  Please check the `virtualPagesRegExp` -- e.g. `/^\/foo\/bar\/?([^\/]+)?/`');
-                        err.code = 'E_DID_NOT_MATCH_REGEXP';
-                        throw err;
-                      }//•
-
-                      this.$parent._handleVirtualNavigation(matches[1]||'');
+                      if (!matches) { throw new Error('Could not match current URL path (`'+path+'`) as a virtual page.  Please check the `virtualPagesRegExp` -- e.g. `/^\/foo\/bar\/?([^\/]+)?/`'); }
+                      this.$parent._navigate(matches[1]||'');
                       // this.$emit('navigate', {
                       //   rawPath: path,
                       //   virtualPageSlug: matches[1]||''
@@ -867,10 +526,10 @@
                     }
                   };
                   // Expose extra methods on virtual page script, if jQuery is available.
-                  _exposeBonusMethods(vueComponentDef, 'virtual page');
+                  _exposeJQueryPoweredMethods(vueComponentDef, 'virtual page');
 
                   // Make sure none of the specified Vue methods are defined with any naughty arrow functions.
-                  _wrapMethodsAndVerifyNoArrowFunctions(vueComponentDef, 'virtual page');
+                  _wrapMethodsAndVerifyNoArrowFunctions(vueComponentDef);
 
                   return vueComponentDef;
                 })()
@@ -878,13 +537,74 @@
             ],
           })
         }, _.omit(def, ['virtualPages', 'virtualPagesRegExp', 'html5HistoryMode', 'beforeNavigate', 'afterNavigate']));
-      } else if (_.isObject(def.virtualPages) && !_.isArray(def.virtualPages) && !_.isFunction(def.virtualPages)) {
-        throw new Error('This usage of `virtualPages` (as a dictionary) is no longer supported.  Instead, please use `virtualPages: true`.  [?] https://sailsjs.com/support');
-        // (old implementation removed in https://github.com/mikermcneil/parasails/commit/20af5992097de788b58ae2cb517675f235798879)
-      } else {
+      }
+      // Otherwise, if a dictionary of `virtualPages` was specified, use those client-side
+      // routes to configure VueRouter.
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      // FUTURE: Re-evaluate this.  This usage will probably change!
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      else if (_.isObject(def.virtualPages) && !_.isArray(def.virtualPages) && !_.isFunction(def.virtualPages)) {
+        if (def.virtualPagesRegExp) { throw new Error('Cannot use `virtualPagesRegExp` with current `virtualPages` setting.  To use the regexp, you must use `virtualPages: true`.'); }
+
+        def = _.extend(
+          {
+            // Pass in `router`
+            router: (function(){
+              var newRouter = new VueRouter({
+
+                // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                // FUTURE: Consider binding popstate handler in order to intercept
+                // back/fwd button navigation / typing in the URL bar that would send
+                // the user to another URL under the same domain.  This would provide
+                // a slightly better user experience for certain cases.
+                // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+                mode: def.html5HistoryMode || 'hash',
+
+                routes: _.reduce(def.virtualPages, function(memo, vueComponentDef, urlPattern) {
+
+                  // Expose extra methods on virtual page script, if jQuery is available.
+                  _exposeJQueryPoweredMethods(vueComponentDef, 'virtual page');
+
+                  // Make sure none of the specified Vue methods are defined with any naughty arrow functions.
+                  _wrapMethodsAndVerifyNoArrowFunctions(vueComponentDef);
+
+                  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                  // FUTURE: If urlPattern contains a url pattern variable (e.g. `:id`)
+                  // or wildcard "splat" (e.g. `*`), then log a warning reminding whoever
+                  // did it to be careful because of this:
+                  // https://router.vuejs.org/en/essentials/dynamic-matching.html#reacting-to-params-changes
+                  //
+                  // In other words, going between `/foo/3` and `/foo/4` doesn't work as expected.
+                  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+                  memo.push({
+                    path: urlPattern,
+                    component: vueComponentDef
+                  });
+
+                  return memo;
+                }, [])
+              });
+
+              if (def.beforeEach) {
+                newRouter.beforeEach(def.beforeEach);
+              }//ﬁ
+
+              return newRouter;
+            })(),
+
+
+          },
+          _.omit(def, ['virtualPages', 'html5HistoryMode', 'beforeEach'])
+        );
+      }
+      else {
         throw new Error('Cannot use `virtualPages` because the specified value doesn\'t match any recognized meaning.  Please specify either `true` (for the default handling) or a dictionary of client-side routing rules.');
       }
-    }//ﬁ  </ def has `virtualPages` >
+
+
+    }//ﬁ
 
     // Construct Vue instance for this page script.
     var vm = new Vue(def);
@@ -895,147 +615,7 @@
 
 
 
-  /**
-   * parasails.util.isMobile()
-   *
-   * Detect whether this is being accessed from a mobile browser/OS, which might
-   * be a handset device (iPhone, etc.) OR a tablet device (iPad, etc.)
-   *
-   * > This relies on `bowser.mobile||bowser.tablet`.
-   *
-   * @returns {Boolean}
-   */
-  parasails.util.isMobile = function(){
-
-    // If `bowser` is not available, throw an error.
-    if(!bowser) {
-      throw new Error('Cannot detect mobile-ness, because `bowser` global does not exist on the page yet. '+
-        '(If you\'re using Sails, please check dependency loading order in pipeline.js and make sure '+
-        'the Bowser library is getting brought in before `parasails`. If you have not included Bowser '+
-        'in your project, you can find it at https://github.com/lancedikson/bowser/releases)');
-    }
-
-    return (!!bowser.mobile) || (!!bowser.tablet);
-
-  };//ƒ
-  // An extra alias, for convenience:
-  parasails.isMobile = parasails.util.isMobile;
-
-
-  /**
-   * parasails.util.isValidEmailAddress()
-   *
-   * Determine whether the given value is a valid email address.
-   *
-   * > This code is taken directly from validator.js / anchor.
-   * > It is implemented as a built-in, organic utility that may be overwritten
-   * > in userland if desired.
-   *
-   * @param {String} value
-   *
-   * @returns {Boolean}
-   */
-
-  parasails.util.isValidEmailAddress = function(value){
-    if (!value || typeof value !== 'string') { return false; }
-    /* eslint-disable */
-    return (function(){function _isByteLength(str,min,max){var len=encodeURI(str).split(/%..|./).length-1;return len>=min&&(typeof max==='undefined'||len<=max)}
-    var emailUserUtf8Part=/^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;var quotedEmailUserUtf8=/^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;function _isFQDN(str){var options={require_tld:!0,allow_underscores:!1,allow_trailing_dot:!1};if(options.allow_trailing_dot&&str[str.length-1]==='.'){str=str.substring(0,str.length-1)}
-    var parts=str.split('.');if(options.require_tld){var tld=parts.pop();if(!parts.length||!/^([a-z\u00a1-\uffff]{2,}|xn[a-z0-9-]{2,})$/i.test(tld)){return!1}}
-    for(var part,i=0;i<parts.length;i++){part=parts[i];if(options.allow_underscores){if(part.indexOf('__')>=0){return!1}
-    part=part.replace(/_/g,'')}
-    if(!/^[a-z\u00a1-\uffff0-9-]+$/i.test(part)){return!1}
-    if(/[\uff01-\uff5e]/.test(part)){return!1}
-    if(part[0]==='-'||part[part.length-1]==='-'||part.indexOf('---')>=0){return!1}}
-    return!0};return function(str){var parts=str.split('@'),domain=parts.pop(),user=parts.join('@');var lower_domain=domain.toLowerCase();if(lower_domain==='gmail.com'||lower_domain==='googlemail.com'){user=user.replace(/\./g,'').toLowerCase()}
-    if(!_isByteLength(user,0,64)||!_isByteLength(domain,0,256)){return!1}
-    if(!_isFQDN(domain)){return!1}
-    if(user[0]==='"'){user=user.slice(1,user.length-1);return quotedEmailUserUtf8.test(user)}
-    var pattern=emailUserUtf8Part;var user_parts=user.split('.');for(var i=0;i<user_parts.length;i++){if(!pattern.test(user_parts[i])){return!1}}
-    return!0}})()(value);
-    /* eslint-enable */
-  };//ƒ
-
-
-  /**
-   * parasails.utils
-   *
-   * A permanent alias for `parasails.util`.
-   *
-   * (Everyone gets these mixed up.)
-   *
-   * @type {:Dictionary}
-   */
-
-  parasails.utils = parasails.util;
-
-
 
   return parasails;
 
-}, function (global, factory) {
-  var Vue;
-  var _;
-  var VueRouter;
-  var $;
-  var bowser;
-
-  //˙°˚°·.
-  //‡CJS  ˚°˚°·˛
-  if (typeof exports === 'object' && typeof module !== 'undefined') {
-    var _require = require;// eslint-disable-line no-undef
-    var _module = module;// eslint-disable-line no-undef
-    // required deps:
-    Vue = _require('vue');
-    _ = _require('lodash');
-    // optional deps:
-    try { VueRouter = _require('vue-router'); } catch (e) { if (e.code === 'MODULE_NOT_FOUND') {/* ok */} else { throw e; } }
-    try { $ = _require('jquery'); } catch (e) { if (e.code === 'MODULE_NOT_FOUND') {/* ok */} else { throw e; } }
-    try { bowser = _require('bowser'); } catch (e) { if (e.code === 'MODULE_NOT_FOUND') {/* ok */} else { throw e; } }
-    // export:
-    _module.exports = factory(Vue, _, VueRouter, $, bowser);
-  }
-  //˙°˚°·
-  //‡AMD ˚¸
-  else if(typeof define === 'function' && define.amd) {// eslint-disable-line no-undef
-    // Register as an anonymous module.
-    define([], function () {// eslint-disable-line no-undef
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      // FUTURE: maybe use optional dep. loading here instead?
-      // e.g.  `function('vue', 'lodash', 'vue-router', 'jquery')`
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      // required deps:
-      if (!global.Vue) { throw new Error('`Vue` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Vue.js library is getting brought in before `parasails`.)'); }
-      Vue = global.Vue;
-      if (!global._) { throw new Error('`_` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Lodash library is getting brought in before `parasails`.)'); }
-      _ = global._;
-      // optional deps:
-      VueRouter = global.VueRouter || undefined;
-      $ = global.$ || global.jQuery || undefined;
-      bowser = global.bowser || undefined;
-
-      // So... there's not really a huge point to supporting AMD here--
-      // except that if you're using it in your project, it makes this
-      // module fit nicely with the others you're using.  And if you
-      // really hate globals, I guess there's that.
-      // ¯\_(ツ)_/¯
-      return factory(Vue, _, VueRouter, $, bowser);
-    });//ƒ
-  }
-  //˙°˚˙°·
-  //‡NUDE ˚°·˛
-  else {
-    // required deps:
-    if (!global.Vue) { throw new Error('`Vue` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Vue.js library is getting brought in before `parasails`.)'); }
-    Vue = global.Vue;
-    if (!global._) { throw new Error('`_` global does not exist on the page yet. (If you\'re using Sails, please check dependency loading order in pipeline.js and make sure the Lodash library is getting brought in before `parasails`.)'); }
-    _ = global._;
-    // optional deps:
-    VueRouter = global.VueRouter || undefined;
-    $ = global.$ || global.jQuery || undefined;
-    bowser = global.bowser || undefined;
-    // export:
-    if (global.parasails) { throw new Error('Conflicting global (`parasails`) already exists!'); }
-    global.parasails = factory(Vue, _, VueRouter, $, bowser);
-  }
 });//…)

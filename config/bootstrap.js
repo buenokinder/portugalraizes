@@ -15,7 +15,7 @@ module.exports.bootstrap = async function(done) {
   var path = require('path');
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
-  var HARD_CODED_DATA_VERSION = 0;
+  var HARD_CODED_DATA_VERSION = 5;
 
   // This path indicates where to store/look for the JSON file that tracks the "last run bootstrap info"
   // locally on this development computer (if we happen to be on a development computer).
@@ -52,28 +52,38 @@ module.exports.bootstrap = async function(done) {
     sails.log('Running bootstrap script because it was forced...  (either `--drop` or `--environment=test` was used)');
   }
 
-  // Since the hard-coded data version has been incremented, and we're running in
-  // a "throwaway data" environment, delete all records from all models.
+  // Since the hard-coded data version has been incremented, and we're running in a "trashable" environment,
+  // delete all records from all models.
   for (let identity in sails.models) {
     await sails.models[identity].destroy({});
   }//∞
 
   // By convention, this is a good place to set up fake data during development.
-  await User.createEach([
-    { emailAddress: 'admin@example.com', fullName: 'Ryan Dahl', isSuperAdmin: true, password: await sails.helpers.passwords.hashPassword('abc123') },
-  ]);
+
+  // Create some fake users, fetching the records so we can do more stuff below.
+  await User.create({ emailAddress: 'admin@example.com', fullName: 'Ryan Dahl', isSuperAdmin: true, password: await sails.helpers.passwords.hashPassword('abc123') }).fetch();
+  var rory = await User.create({ emailAddress: 'rory@example.com', fullName: 'Rory Milliard', password: await sails.helpers.passwords.hashPassword('abc123') }).fetch();
+  var raquel = await User.create({ emailAddress: 'raquel@example.com', fullName: 'Raquel Estevez', password: await sails.helpers.passwords.hashPassword('abc123') }).fetch();
+  var rachael = await User.create({ emailAddress: 'rachael@example.com', fullName: 'Rachael Shaw', password: await sails.helpers.passwords.hashPassword('abc123') }).fetch();
+  var mike = await User.create({ emailAddress: 'mike@example.com', fullName: 'Mike McNeil', password: await sails.helpers.passwords.hashPassword('abc123') }).fetch();
+
+  // Start some friendships.
+  await User.addToCollection(rory.id, 'friends').members([raquel.id, rachael.id, mike.id]);
+  await User.addToCollection(raquel.id, 'friends').members([rory.id, rachael.id, mike.id]);
+  await User.addToCollection(rachael.id, 'friends').members([rory.id, raquel.id, mike.id]);
+  await User.addToCollection(mike.id, 'friends').members([rory.id, raquel.id, rachael.id]);
 
   // Save new bootstrap version
   await sails.helpers.fs.writeJson.with({
     destination: bootstrapLastRunInfoPath,
     json: {
       lastRunVersion: HARD_CODED_DATA_VERSION,
-      lastRunAt: Date.now()
+      lastRunAt: Date.now(),
     },
     force: true
   })
   .tolerate((err)=>{
-    sails.log.warn('For some reason, could not write bootstrap version .json file.  This could be a result of a problem with your configured paths, or, if you are in production, a limitation of your hosting provider related to `pwd`.  As a workaround, try updating app.js to explicitly pass in `appPath: __dirname` instead of relying on `chdir`.  Current sails.config.appPath: `'+sails.config.appPath+'`.  Full error details: '+err.stack+'\n\n(Proceeding anyway this time...)');
+    sails.log.warn('For some reason, could not write bootstrap version .json file.  This could be a result of a problem with your configured paths, or a limitation around cwd on your hosting provider.  As a workaround, try updating app.js to explicitly use __dirname.  Current sails.config.appPath: `'+sails.config.appPath+'`.  Full error details: '+err.stack+'\n\n(Proceeding anyway this time...)');
   });
 
   // Don't forget to trigger `done()` when this bootstrap function's logic is finished.

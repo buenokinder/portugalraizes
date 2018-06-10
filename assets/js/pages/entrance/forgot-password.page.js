@@ -3,6 +3,7 @@ parasails.registerPage('forgot-password', {
   //  ║║║║║ ║ ║╠═╣║    ╚═╗ ║ ╠═╣ ║ ║╣
   //  ╩╝╚╝╩ ╩ ╩╩ ╩╩═╝  ╚═╝ ╩ ╩ ╩ ╩ ╚═╝
   data: {
+
     // Main syncing/loading state for this page.
     syncing: false,
 
@@ -18,6 +19,7 @@ parasails.registerPage('forgot-password', {
 
     // Success state when form has been submitted
     cloudSuccess: false,
+
   },
 
   //  ╦  ╦╔═╗╔═╗╔═╗╦ ╦╔═╗╦  ╔═╗
@@ -27,8 +29,8 @@ parasails.registerPage('forgot-password', {
     // Attach any initial data from the server.
     _.extend(this, SAILS_LOCALS);
   },
-  mounted: async function() {
-    //…
+  mounted: function() {
+    this.$focus('[autofocus]');
   },
 
   //  ╦╔╗╔╔╦╗╔═╗╦═╗╔═╗╔═╗╔╦╗╦╔═╗╔╗╔╔═╗
@@ -36,12 +38,8 @@ parasails.registerPage('forgot-password', {
   //  ╩╝╚╝ ╩ ╚═╝╩╚═╩ ╩╚═╝ ╩ ╩╚═╝╝╚╝╚═╝
   methods: {
 
-    submittedForm: async function() {
-      // If it worked, show the success message.
-      this.cloudSuccess = true;
-    },
-
     handleParsingForm: function() {
+
       // Clear out any pre-existing error messages.
       this.formErrors = {};
 
@@ -60,6 +58,11 @@ parasails.registerPage('forgot-password', {
       }
 
       return argins;
+    },
+
+    submittedForm: function() {
+      // If it worked, show the success message.
+      this.cloudSuccess = true;
     },
 
   }

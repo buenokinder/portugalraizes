@@ -16,14 +16,6 @@
  *            billingCardExpMonth: '…',
  *            billingCardExpYear: '…'
  *          }
- * -----------------------------------------------------------------
- * Example usage:
- * ```
- * var billingInfo = await openStripeCheckout(
- *   'pk_test_Qz5RfDmVV5IunTFAHtDqDWn4',
- *   'foo@example.com'
- * );
- * ```
  */
 
 parasails.registerUtility('openStripeCheckout', async function openStripeCheckout(stripePublishableKey, billingEmailAddress) {
@@ -51,10 +43,10 @@ parasails.registerUtility('openStripeCheckout', async function openStripeCheckou
       // Open Stripe checkout.
       // (https://stripe.com/docs/checkout#integration-custom)
       checkoutHandler.open({
-        name: 'NEW_APP_NAME',
+        name: 'Ration',
         description: 'Link your credit card.',
         panelLabel: 'Save card',
-        email: billingEmailAddress,//« So that Stripe doesn't prompt for an email address
+        email: billingEmailAddress,
         locale: 'auto',
         zipCode: false,
         allowRememberMe: false,

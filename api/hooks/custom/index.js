@@ -19,17 +19,17 @@ module.exports = function defineCustomHook(sails) {
       sails.log.info('Initializing hook... (`api/hooks/custom`)');
 
       // Check Stripe/Mailgun configuration (for billing and emails).
-      var IMPORTANT_STRIPE_CONFIG = ['stripeSecret', 'stripePublishableKey'];
-      var IMPORTANT_MAILGUN_CONFIG = ['mailgunSecret', 'mailgunDomain', 'internalEmailAddress'];
-      var isMissingStripeConfig = _.difference(IMPORTANT_STRIPE_CONFIG, Object.keys(sails.config.custom)).length > 0;
-      var isMissingMailgunConfig = _.difference(IMPORTANT_MAILGUN_CONFIG, Object.keys(sails.config.custom)).length > 0;
+      var MANDATORY_STRIPE_CONFIG = ['stripeSecret', 'stripePublishableKey'];
+      var MANDATORY_MAILGUN_CONFIG = ['mailgunSecret', 'mailgunDomain', 'internalEmailAddress'];
+      var isMissingStripeConfig = _.difference(MANDATORY_STRIPE_CONFIG, Object.keys(sails.config.custom)).length > 0;
+      var isMissingMailgunConfig = _.difference(MANDATORY_MAILGUN_CONFIG, Object.keys(sails.config.custom)).length > 0;
 
       if (isMissingStripeConfig || isMissingMailgunConfig) {
 
         let missingFeatureText = isMissingStripeConfig && isMissingMailgunConfig ? 'billing and email' : isMissingStripeConfig ? 'billing' : 'email';
-        let suffix = '';
-        if (_.contains(['silly'], sails.config.log.level)) {
-          suffix =
+        let verboseSuffix = '';
+        if (_.contains(['verbose', 'silly'], sails.config.log.level)) {
+          verboseSuffix =
 `
 > Tip: To exclude sensitive credentials from source control, use:
 > • config/local.js (for local development)
@@ -61,16 +61,16 @@ module.exports = function defineCustomHook(sails) {
           problems.push('No `sails.config.custom.internalEmailAddress` was configured.');
         }
 
-        sails.log.verbose(
+        sails.log.warn(
 `Some optional settings have not been configured yet:
 ---------------------------------------------------------------------
 ${problems.join('\n')}
 
-Until this is addressed, this app's ${missingFeatureText} features
+Until this is resolved, this app's ${missingFeatureText} features
 will be disabled and/or hidden in the UI.
 
  [?] If you're unsure or need advice, come by https://sailsjs.com/support
----------------------------------------------------------------------${suffix}`);
+---------------------------------------------------------------------${verboseSuffix}`);
       }//ﬁ
 
       // Set an additional config keys based on whether Stripe config is available.
@@ -116,8 +116,6 @@ will be disabled and/or hidden in the UI.
           skipAssets: true,
           fn: async function(req, res, next){
 
-            var url = require('url');
-
             // First, if this is a GET request (and thus potentially a view),
             // attach a couple of guaranteed locals.
             if (req.method === 'GET') {
@@ -138,24 +136,9 @@ will be disabled and/or hidden in the UI.
                 throw new Error('Cannot attach view local `me`, because this view local already exists!  (Is it being attached somewhere else?)');
               }
               res.locals.me = undefined;
+
             }//ﬁ
 
-            // Next, if we're running in our actual "production" or "staging" Sails
-            // environment, check if this is a GET request via some other subdomain,
-            // for example something like `webhooks.` or `click.`.  If so, we'll
-            // automatically go ahead and redirect to the corresponding path under
-            // our base URL, which is environment-specific.
-            // > Note that we DO NOT redirect virtual socket requests and we DO NOT
-            // > redirect non-GET requests (because it can confuse some 3rd party
-            // > platforms that send webhook requests.)
-            var configuredBaseSubdomain;
-            try {
-              configuredBaseSubdomain = url.parse(sails.config.custom.baseUrl).host.match(/^([^\.]+)\./)[1];
-            } catch (unusedErr) { /*…*/}
-            if ((sails.config.environment === 'staging' || sails.config.environment === 'production') && !req.isSocket && req.method === 'GET' && req.subdomains[0] !== configuredBaseSubdomain) {
-              sails.log.info('Redirecting GET request from `'+req.subdomains[0]+'.` subdomain...');
-              return res.redirect(sails.config.custom.baseUrl+req.url);
-            }//•
 
             // No session? Proceed as usual.
             // (e.g. request for a static asset)
@@ -167,7 +150,10 @@ will be disabled and/or hidden in the UI.
             // Otherwise, look up the logged-in user.
             var loggedInUser = await User.findOne({
               id: req.session.userId
-            });
+            })
+            .populate('friends')
+            .populate('inboundFriendRequests')
+            .populate('outboundFriendRequests');
 
             // If the logged-in user has gone missing, log a warning,
             // wipe the user id from the requesting user agent's session,

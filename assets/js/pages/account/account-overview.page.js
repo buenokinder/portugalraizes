@@ -3,12 +3,14 @@ parasails.registerPage('account-overview', {
   //  ║║║║║ ║ ║╠═╣║    ╚═╗ ║ ╠═╣ ║ ║╣
   //  ╩╝╚╝╩ ╩ ╩╩ ╩╩═╝  ╚═╝ ╩ ╩ ╩ ╩ ╚═╝
   data: {
+
+    me: { /* ... */ },
+
     isBillingEnabled: false,
 
     hasBillingCard: false,
 
     // Syncing/loading states for this page.
-    syncingOpenCheckout: false,
     syncingUpdateCard: false,
     syncingRemoveCard: false,
 
@@ -34,15 +36,13 @@ parasails.registerPage('account-overview', {
     this.isBillingEnabled = !!this.stripePublishableKey;
 
     // Determine whether there is billing info for this user.
-    this.me.hasBillingCard = (
+    this.hasBillingCard = (
       this.me.billingCardBrand &&
       this.me.billingCardLast4 &&
       this.me.billingCardExpMonth &&
       this.me.billingCardExpYear
     );
-  },
-  mounted: async function() {
-    //…
+
   },
 
   //  ╦╔╗╔╔╦╗╔═╗╦═╗╔═╗╔═╗╔╦╗╦╔═╗╔╗╔╔═╗
@@ -52,19 +52,17 @@ parasails.registerPage('account-overview', {
 
     clickStripeCheckoutButton: async function() {
 
+      // Import utilities.
+      var openStripeCheckout = parasails.require('openStripeCheckout');
+
       // Prevent double-posting if it's still loading.
       if(this.syncingUpdateCard) { return; }
-
-      // Show syncing state for opening checkout.
-      this.syncingOpenCheckout = true;
 
       // Clear out error states.
       this.cloudError = false;
 
       // Open Stripe Checkout.
-      var billingCardInfo = await parasails.util.openStripeCheckout(this.stripePublishableKey, this.me.emailAddress);
-      // Clear the loading state for opening checkout.
-      this.syncingOpenCheckout = false;
+      var billingCardInfo = await openStripeCheckout(this.stripePublishableKey, this.me.emailAddress);
       if (!billingCardInfo) {
         // (if the user canceled the dialog, avast)
         return;
@@ -82,27 +80,27 @@ parasails.registerPage('account-overview', {
       // Upon success, update billing info in the UI.
       if (!this.cloudError) {
         Object.assign(this.me, _.pick(billingCardInfo, ['billingCardLast4', 'billingCardBrand', 'billingCardExpMonth', 'billingCardExpYear']));
-        this.me.hasBillingCard = true;
+        this.hasBillingCard = true;
       }
     },
 
-    clickRemoveCardButton: async function() {
+    clickRemoveCardButton: function() {
       this.removeCardModalVisible = true;
     },
 
-    closeRemoveCardModal: async function() {
+    closeRemoveCardModal: function() {
       this.removeCardModalVisible = false;
       this.cloudError = false;
     },
 
-    submittedRemoveCardForm: async function() {
+    submittedRemoveCardForm: function() {
 
       // Update billing info on success.
       this.me.billingCardLast4 = undefined;
       this.me.billingCardBrand = undefined;
       this.me.billingCardExpMonth = undefined;
       this.me.billingCardExpYear = undefined;
-      this.me.hasBillingCard = false;
+      this.hasBillingCard = false;
 
       // Close the modal and clear it out.
       this.closeRemoveCardModal();

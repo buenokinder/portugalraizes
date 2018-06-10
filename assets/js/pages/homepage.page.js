@@ -3,7 +3,9 @@ parasails.registerPage('homepage', {
   //  ║║║║║ ║ ║╠═╣║    ╚═╗ ║ ╠═╣ ║ ║╣
   //  ╩╝╚╝╩ ╩ ╩╩ ╩╩═╝  ╚═╝ ╩ ╩ ╩ ╩ ╚═╝
   data: {
+
     heroHeightSet: false,
+
   },
 
   //  ╦  ╦╔═╗╔═╗╔═╗╦ ╦╔═╗╦  ╔═╗
@@ -13,7 +15,7 @@ parasails.registerPage('homepage', {
     // Attach any initial data from the server.
     _.extend(this, SAILS_LOCALS);
   },
-  mounted: async function(){
+  mounted: function(){
     this._setHeroHeight();
   },
 
@@ -21,13 +23,6 @@ parasails.registerPage('homepage', {
   //  ║║║║ ║ ║╣ ╠╦╝╠═╣║   ║ ║║ ║║║║╚═╗
   //  ╩╝╚╝ ╩ ╚═╝╩╚═╩ ╩╚═╝ ╩ ╩╚═╝╝╚╝╚═╝
   methods: {
-
-    clickHeroButton: async function() {
-      // Scroll to the 'get started' section:
-      $('html, body').animate({
-        scrollTop: this.$find('[role="scroll-destination"]').offset().top
-      }, 500);
-    },
 
     // Private methods not tied to a particular DOM event are prefixed with _
     _setHeroHeight: function() {
@@ -39,6 +34,13 @@ parasails.registerPage('homepage', {
       $hero.css('min-height', heightToSet - headerHeight+'px');
       this.heroHeightSet = true;
     },
+
+    clickHeroButton: function() {
+      // Scroll to the 'get started' section:
+      $('html, body').animate({
+        scrollTop: this.$find('[role="scroll-destination"]').offset().top
+      }, 500);
+    }
 
   }
 });
